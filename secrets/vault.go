@@ -1,16 +1,17 @@
 package secrets
 
 import (
-	"errors"
 	"encoding/json"
+	"errors"
+	"io/ioutil"
 )
 
 type Vault struct {
 	Path      string `json:"-"`
 	KeyRingId string
 	Name      string
-	Keys      map[string]string  `json:"-"`
-	BinData     []byte
+	Keys      map[string]string `json:"-"`
+	BinData   []byte
 }
 
 //
@@ -18,21 +19,23 @@ type Vault struct {
 //
 // If the file exists already, attempts to load the metadata from the path.
 //
-func NewVault(name string, configPath string) (*Vault) {
+func NewVault(name string, configPath string) *Vault {
 	v := Vault{Path: configPath, Name: name}
 	return &v
 }
 
 //
-// Serialize to string 
+// Serialize to string
 //
-func (v *Vault) Serialize() (byte[], error){
+func (v *Vault) Serialize() ([]byte, error) {
 
 	// TODO: populate BinData
-	return json.Marshal(v)
+	result, err := json.Marshal(v)
+	v.BinData = nil
+	return result, err
 }
 
-func (v *Vault) EncryptKeys() (byte[], error) {
+func (v *Vault) EncryptKeys() ([]byte, error) {
 
 	return nil, nil
 }
@@ -52,12 +55,11 @@ func (v *Vault) Unlock(passphrase string) {
 //
 func (v *Vault) Save() error {
 	bytes, err := v.Serialize()
-
 	if err != nil {
 		return err
+	} else {
+		return ioutil.WriteFile(v.Path, bytes, 0600)
 	}
-	err := ioutil.WriteFile(v.Path, bytes, 0600)
-	return err
 }
 
 //
@@ -81,9 +83,11 @@ func (v *Vault) getPassword() (string, error) {
 //
 func (v *Vault) Add(key string, secret string) error {
 
-	if !IsUnlocked() {
+	if !v.IsUnlocked() {
 		return errors.New("Vault is not unlocked - please run `secrets vault unlock --path=<path_to_vault>`")
 	}
 	v.Keys[key] = secret
 	v.Save()
+
+	return nil
 }

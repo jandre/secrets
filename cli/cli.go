@@ -3,6 +3,7 @@ package cli
 import (
 	"os"
 
+	"github.com/jandre/secrets/secrets"
 	kingpin "gopkg.in/alecthomas/kingpin.v1"
 )
 
@@ -17,6 +18,7 @@ var (
 	vault        = app.Command("vault", "Create and manage vaults.")
 	vaultNew     = vault.Command("new", "Create a new vault.")
 	vaultNewName = vaultNew.Arg("name", "Name of the vault to create").Required().String()
+	vaultNewPath = vaultNew.Flag("path", "Path to create the .vault file (default is current working dir)").Default(".").String()
 
 	vaultList     = vault.Command("list", "List all vaults.")
 	vaultShow     = vault.Command("show", "Show the contents of a vault.")
@@ -38,9 +40,13 @@ func Run() {
 	case vault.FullCommand():
 		println("got vault with no args")
 	case vaultNew.FullCommand():
+		secrets.NewVault(*vaultNewName, *vaultNewPath)
 		println("got vault")
 
 	case vaultShow.FullCommand():
 		println("got vault show")
+
+	default:
+		app.Usage(os.Stderr)
 	}
 }
