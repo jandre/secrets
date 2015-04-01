@@ -4,10 +4,11 @@
 package secrets
 
 import (
+	"crypto/aes"
 	"crypto/cipher"
-	"crypto/des"
 	"crypto/rand"
 	"crypto/sha256"
+	"encoding/base64"
 	"errors"
 )
 
@@ -29,6 +30,9 @@ func KeyGen(passphrase string, keySize uint) ([]byte, error) {
 	return bytes[:keySize], nil
 }
 
+//
+// GenRandomIv() will generate random IV of `blockSize` bytes.
+//
 func GenRandomIv(blockSize int) ([]byte, error) {
 	b := make([]byte, blockSize)
 	bytesRead, err := rand.Read(b)
@@ -44,52 +48,109 @@ func GenRandomIv(blockSize int) ([]byte, error) {
 	return b, nil
 }
 
-// returns a byte block with <32 byte sha-256 hmac>< blockSize iv>< n blocks payload>
+//
+// Encrypts a block with the given passphrase.
+//
+// Returns a byte block with <32 byte sha-256 hmac>< blockSize iv>< n blocks payload>
 func Encrypt(passphrase string, bytes []byte) ([]byte, error) {
 
-	key, err := KeyGen(passphrase, des.BlockSize)
+	key, err := KeyGen(passphrase, aes.BlockSize)
 
 	if err != nil {
 		return nil, err
 	}
 
-	block, err := des.NewCipher(key)
+	aes, err := aes.NewCipher(key)
 
 	if err != nil {
 		return nil, err
 	}
 
-	ivBytesSize := block.BlockSize()
-	hmacBytesSize := sha256.Size
-	totalBytes := len(bytes)
-	totalBlocks := totalBytes/block.BlockSize() + 1
-
-	result := make([]byte, hmacBytesSize+ivBytesSize+
-		(totalBlocks)*block.BlockSize())
-
-	iv, err := GenRandomIv(block.BlockSize())
+	mode, err := cipher.NewGCM(aes)
 
 	if err != nil {
 		return nil, err
 	}
 
-	// copy iv
-	copy(result[hmacBytesSize:hmacBytesSize+ivBytesSize], iv)
+	iv, err := GenRandomIv(mode.NonceSize())
 
-	mode := cipher.NewCBCEncrypter(block, iv)
+	if err != nil {
+		return nil, err
+	}
 
-	mode.CryptBlocks(result[ivBytesSize+hmacBytesSize:], bytes)
+	if err != nil {
+		return nil, err
+	}
 
-	hmacBytes := sha256.Sum256(result[hmacBytesSize:])
+	encrypted := mode.Seal(nil, iv, bytes, nil)
 
-	copy(result[:hmacBytesSize], hmacBytes[0:hmacBytesSize])
+	result := append(iv, encrypted...)
 
 	return result, nil
 }
 
+func Decrypt(passphrase string, data []byte) ([]byte, error) {
+
+	key, err := KeyGen(passphrase, aes.BlockSize)
+
+	if err != nil {
+		return nil, err
+	}
+
+	aes, err := aes.NewCipher(key)
+
+	if err != nil {
+		return nil, err
+	}
+
+	mode, err := cipher.NewGCM(aes)
+	ivBytesSize := mode.NonceSize()
+	iv := data[:ivBytesSize]
+	cipherText := data[ivBytesSize:]
+
+	if err != nil {
+		return nil, err
+	}
+
+	return mode.Open(nil, iv, cipherText, nil)
+
+}
+
 //
-// Encrypts a string
+// EncryptString encrypts a string `data` with the passphrase `passphrase`
 //
 func EncryptString(passphrase string, data string) ([]byte, error) {
 	return Encrypt(passphrase, []byte(data))
+}
+
+//
+// DecryptString
+//
+func DecryptString(passphrase string, data []byte) (string, error) {
+	bytes, err := Decrypt(passphrase, data)
+
+	if err != nil {
+		return "", err
+	}
+	return string(bytes), err
+}
+
+func DecryptBase64String(passphrase string, input string) (string, error) {
+	bytes, err := base64.StdEncoding.DecodeString(input)
+
+	if err != nil {
+		return "", err
+	}
+	return DecryptString(passphrase, bytes)
+}
+
+//
+// Encrypts and base64 encrypted output.
+//
+func EncryptAndBase64String(passphrase string, data string) (string, error) {
+	result, err := EncryptString(passphrase, data)
+	if err != nil {
+		return "", err
+	}
+	return base64.StdEncoding.EncodeToString(result), nil
 }
