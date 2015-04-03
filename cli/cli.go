@@ -3,7 +3,6 @@ package cli
 import (
 	"os"
 
-	"github.com/jandre/secrets/secrets"
 	kingpin "gopkg.in/alecthomas/kingpin.v1"
 )
 
@@ -38,10 +37,14 @@ func Run() {
 	switch kingpin.MustParse(app.Parse(os.Args[1:])) {
 
 	case vault.FullCommand():
-		println("got vault with no args")
+		println("Subcommand for `vault` is required.")
+		app.CommandUsage(os.Stderr, vault.FullCommand())
+
 	case vaultNew.FullCommand():
-		secrets.NewVault(*vaultNewName, *vaultNewPath)
-		println("got vault")
+		CreateVault(*vaultNewName, *vaultNewPath)
+
+	case vaultList.FullCommand():
+		ListVaults()
 
 	case vaultShow.FullCommand():
 		println("got vault show")
