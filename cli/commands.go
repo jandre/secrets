@@ -26,9 +26,10 @@ func PrettyPrintLoadedVaults(vaults []*secrets.Vault) {
 		return
 	}
 
-	fmt.Printf("Found %s%d%s vaults:\n", lime, len(vaults), reset)
+	fmt.Printf("Found %s%d%s vault(s):\n\n", lime, len(vaults), reset)
 	for id, vault := range vaults {
-		fmt.Printf("-- [%d]: %s (%d keys)\n", id, vault.Name, len(vault.Keys))
+		fmt.Printf("%d. %s (%d keys)\n", id+1, vault.Name, len(vault.Keys))
+		fmt.Printf("\t%s\n", vault.Path)
 	}
 }
 
@@ -78,4 +79,21 @@ func CreateVault(name string, folder string) {
 		log.Println("The vault has been unlocked. Add new secrets using:")
 		log.Print("`secrets vault add-secret \"" + name + "\" <key> <value>`")
 	}
+}
+
+func ShowVault(name string) {
+	vault := secrets.LookupVaultFromKeyRing(name)
+
+	if vault != nil {
+
+	} else {
+		log.Fatal("No vault found: ", name)
+	}
+}
+
+func AddSecretToVault(name string, key string, val string) {
+	if val == "" {
+		// XXX: read from line
+	}
+
 }

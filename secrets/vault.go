@@ -39,6 +39,27 @@ func LoadVaultsFromKeyRing() ([]*Vault, error) {
 	return result, nil
 }
 
+func LookupVaultFromKeyRing(name string) *Vault {
+
+	keys, err := GetVaultKeys()
+	if err != nil {
+		// XXX: log error?
+		return nil
+	}
+
+	for _, desc := range keys {
+		if desc.Description == name {
+			vault := DetectVault(desc.Description)
+			if vault != nil {
+				return vault
+			}
+
+		}
+	}
+	return nil
+
+}
+
 //
 // Returns name, path of keyring if `keyRingId` is valid
 //
@@ -84,19 +105,32 @@ func NewVault(name string, configPath string) *Vault {
 }
 
 func (v *Vault) VerifyPassphrase(passphrase string) bool {
+	data, err := v.getSigningData()
+	if err != nil {
+		// XXX: log this somehow
+		return false
+	}
+	return VerifySignature(passphrase, data, v.Signature)
+}
 
-	return false
+func (v *Vault) getSigningData() (string, error) {
+	data, err := json.Marshal(v.Keys)
+
+	if err != nil {
+		return "", err
+	}
+
+	return fmt.Sprintf("%s-%s-%s", v.Name, v.KeyRingId, data), nil
 }
 
 func (v *Vault) Sign(passphrase string) error {
 	// generate a vault key and encrypt it
-	data, err := json.Marshal(v.Keys)
 
+	toSign, err := v.getSigningData()
 	if err != nil {
 		return err
 	}
 
-	toSign := fmt.Sprintf("%s-%s-%s", v.Name, v.KeyRingId, data)
 	v.Signature = SignData(passphrase, toSign)
 
 	return nil
@@ -128,11 +162,17 @@ func (v *Vault) Load() {
 //
 func (v *Vault) Unlock(passphrase string) error {
 
-	if v.Signature != nil {
+	if v.Signature != "" {
+
+		if v.VerifyPassphrase(passphrase) {
+			_, err := AddVaultToKeyRing(v, passphrase)
+			return err
+		} else {
+			return errors.New("Invalid passphrase.")
+		}
 
 	} else {
 		return errors.New("Could not unlock - vault is not signed!")
-
 	}
 
 }

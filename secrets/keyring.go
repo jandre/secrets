@@ -64,12 +64,31 @@ func GetVaultKeys() ([]*keyutils.KeyDesc, error) {
 }
 
 func IsVaultKey(desc *keyutils.KeyDesc) bool {
-	return desc.Type == "user" && strings.HasPrefix(desc.Description, "secrets$")
+	return desc.Type == "keyring" && strings.HasPrefix(desc.Description, "secrets$")
 }
 
-//
-// Get all keys in the keyring
-//
-func GetAllKeys(keyRingId string) {
+func AddVaultToKeyRing(vault *Vault, passphrase string) (keyutils.KeySerial, error) {
+	parentRing, err := GetContainerKeyRing()
 
+	if err != nil {
+		return 0, err
+	}
+
+	if parentRing == nil {
+		return 0, errors.New("no keyring found")
+	}
+
+	vaultRing, err := keyutils.NewKeyRing(vault.GetKeyRingId(), parentRing.Serial)
+
+	if err != nil {
+		return 0, err
+	}
+
+	id, err := keyutils.AddKey(keyutils.USER, "passphrase", passphrase, vaultRing)
+
+	if err != nil {
+		return 0, err
+	}
+
+	return id, err
 }
