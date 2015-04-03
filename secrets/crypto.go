@@ -6,11 +6,24 @@ package secrets
 import (
 	"crypto/aes"
 	"crypto/cipher"
+	"crypto/hmac"
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/base64"
 	"errors"
 )
+
+func SignData(passphrase string, data string) string {
+	key := []byte(passphrase)
+	h := hmac.New(sha256.New, key)
+	h.Write([]byte(data))
+	return base64.StdEncoding.EncodeToString(h.Sum(nil))
+}
+
+func VerifySignature(passphrase string, data string, expected string) bool {
+	signature := SignData(passphrase, data)
+	return signature == expected
+}
 
 //
 // KeyGen() will generate a key with a passphrase that is `keySize` bytes

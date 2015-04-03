@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 	"path"
+	"path/filepath"
 
 	"github.com/jandre/secrets/secrets"
 	"github.com/jandre/secrets/secrets/util"
@@ -31,6 +32,9 @@ func PrettyPrintLoadedVaults(vaults []*secrets.Vault) {
 	}
 }
 
+//
+// List vaults loaded in keyring.
+//
 func ListVaults() {
 	vaults, err := secrets.LoadVaultsFromKeyRing()
 	if err != nil {
@@ -44,19 +48,34 @@ func ListVaults() {
 //
 func CreateVault(name string, folder string) {
 
+	folder, err := filepath.Abs(folder)
+
+	if err != nil {
+		log.Fatal("No vault created!  Not a valid folder: ", folder, err)
+	}
+
+	if !util.DirectoryExists(folder) {
+		log.Fatal("No vault created!  Not a valid folder: ", folder)
+	}
+
 	file := path.Join(folder, ".vault")
 
 	if util.FileExists(file) {
 		log.Fatal("No vault created!  A vault file already exists at: ", file)
 	}
 
+	passphrase := secrets.TryGetPassphrase()
+
 	vault := secrets.NewVault(name, file)
-	vault.GenerateKeyRingId()
-	err := vault.Save()
+	vault.Sign(passphrase)
+	err = vault.Save()
 
 	if err != nil {
-		log.Println("Vault created: ", file)
-	} else {
 		log.Fatal("Failure to create vault:", err)
+	} else {
+		vault.Unlock(passphrase)
+		log.Println("Vault created: ", name)
+		log.Println("The vault has been unlocked. Add new secrets using:")
+		log.Print("`secrets vault add-secret \"" + name + "\" <key> <value>`")
 	}
 }

@@ -3,18 +3,22 @@ package secrets
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io/ioutil"
 	"strings"
+	"time"
 
 	"github.com/jandre/secrets/secrets/util"
 )
 
 type Vault struct {
 	Path          string `json:"-"`
-	KeyRingId     string
+	KeyRingId     string `json:"-"`
 	Name          string
+	LastUpdatedAt string
 	Keys          map[string]string
 	DecryptedKeys map[string]string `json:"-"`
+	Signature     string
 }
 
 func LoadVaultsFromKeyRing() ([]*Vault, error) {
@@ -57,7 +61,15 @@ func DetectVault(keyRingId string) *Vault {
 		return nil
 	}
 
-	return NewVault(name, configPath)
+	return ReadVault(name, configPath)
+}
+
+// TODO: read vault
+func ReadVault(name string, configPath string) *Vault {
+	v := Vault{Path: configPath, Name: name}
+	v.GenerateKeyRingId()
+	v.Load()
+	return &v
 }
 
 //
@@ -67,7 +79,27 @@ func DetectVault(keyRingId string) *Vault {
 //
 func NewVault(name string, configPath string) *Vault {
 	v := Vault{Path: configPath, Name: name}
+	v.GenerateKeyRingId()
 	return &v
+}
+
+func (v *Vault) VerifyPassphrase(passphrase string) bool {
+
+	return false
+}
+
+func (v *Vault) Sign(passphrase string) error {
+	// generate a vault key and encrypt it
+	data, err := json.Marshal(v.Keys)
+
+	if err != nil {
+		return err
+	}
+
+	toSign := fmt.Sprintf("%s-%s-%s", v.Name, v.KeyRingId, data)
+	v.Signature = SignData(passphrase, toSign)
+
+	return nil
 }
 
 func (v *Vault) GenerateKeyRingId() {
@@ -91,13 +123,32 @@ func (v *Vault) Load() {
 
 }
 
-func (v *Vault) Unlock(passphrase string) {
+//
+// Unlock the vault by putting the secrets into memory.
+//
+func (v *Vault) Unlock(passphrase string) error {
+
+	if v.Signature != nil {
+
+	} else {
+		return errors.New("Could not unlock - vault is not signed!")
+
+	}
+
+}
+
+//
+// TODO: keyRingId should be dynamic
+//
+func (v *Vault) GetKeyRingId() string {
+	return v.KeyRingId
 }
 
 //
 // Save the vault to disk
 //
 func (v *Vault) Save() error {
+	v.LastUpdatedAt = time.Now().String()
 	bytes, err := v.Serialize()
 	if err != nil {
 		return err

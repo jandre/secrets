@@ -19,7 +19,16 @@ var (
 	vaultNewName = vaultNew.Arg("name", "Name of the vault to create").Required().String()
 	vaultNewPath = vaultNew.Flag("path", "Path to create the .vault file (default is current working dir)").Default(".").String()
 
-	vaultList     = vault.Command("list", "List all vaults.")
+	vaultList = vault.Command("list", "List all loaded vaults.")
+
+	vaultUnlock     = vault.Command("unlock", "Unlock a given vault.")
+	vaultUnlockPath = vaultUnlock.Flag("path", "Path to the .vault file (default is current working dir)").Default(".").String()
+
+	vaultAddSecret      = vault.Command("add-secret", "Add a secret")
+	vaultAddSecretName  = vaultAddSecret.Arg("name", "Name of the vault").Required().String()
+	vaultAddSecretKey   = vaultAddSecret.Arg("key", "Secret key").Required().String()
+	vaultAddSecretValue = vaultAddSecret.Arg("value", "Secret value").String()
+
 	vaultShow     = vault.Command("show", "Show the contents of a vault.")
 	vaultShowName = vaultShow.Arg("name", "Name of the vault to show").Required().String()
 
@@ -45,6 +54,8 @@ func Run() {
 
 	case vaultList.FullCommand():
 		ListVaults()
+	case vaultAddSecret.FullCommand():
+		println("adding a secret")
 
 	case vaultShow.FullCommand():
 		println("got vault show")
