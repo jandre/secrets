@@ -61,6 +61,9 @@ func Run() {
 	case vaultShow.FullCommand():
 		println("got vault show")
 
+	case vaultUnlock.FullCommand():
+		UnlockVault(*vaultUnlockPath)
+
 	default:
 		app.Usage(os.Stderr)
 	}

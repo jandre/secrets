@@ -44,10 +44,10 @@ func ListVaults() {
 	PrettyPrintLoadedVaults(vaults)
 }
 
-//
-// Create a new vault
-//
-func CreateVault(name string, folder string) {
+func findVaultFile(folder string) string {
+	if folder == "" {
+		folder = "."
+	}
 
 	folder, err := filepath.Abs(folder)
 
@@ -59,25 +59,55 @@ func CreateVault(name string, folder string) {
 		log.Fatal("No vault created!  Not a valid folder: ", folder)
 	}
 
-	file := path.Join(folder, ".vault")
+	return path.Join(folder, ".vault")
+}
 
-	if util.FileExists(file) {
-		log.Fatal("No vault created!  A vault file already exists at: ", file)
+func UnlockVault(folder string) {
+	file := findVaultFile(folder)
+	passphrase := secrets.TryGetPassphrase()
+	vault, err := secrets.ReadVault("", file)
+
+	if err != nil {
+		log.Fatal("Unable to read vault: ", err)
 	}
 
+	if vault == nil {
+		log.Fatal("No valid .vault file found at path: ", folder)
+	}
+
+	err = vault.Unlock(passphrase)
+
+	if err != nil {
+		log.Fatal("Unable to unlock vault: ", err)
+	} else {
+		log.Println("The vault has been unlocked. Add new secrets using:")
+		log.Print("`secrets vault add-secret \"" + vault.Name + "\" <key> <value>`")
+	}
+}
+
+//
+// Create a new vault
+//
+func CreateVault(name string, folder string) {
+
+	file := findVaultFile(folder)
 	passphrase := secrets.TryGetPassphrase()
 
 	vault := secrets.NewVault(name, file)
 	vault.Sign(passphrase)
-	err = vault.Save()
+	err := vault.Save()
 
 	if err != nil {
 		log.Fatal("Failure to create vault:", err)
 	} else {
-		vault.Unlock(passphrase)
-		log.Println("Vault created: ", name)
-		log.Println("The vault has been unlocked. Add new secrets using:")
-		log.Print("`secrets vault add-secret \"" + name + "\" <key> <value>`")
+		err = vault.Unlock(passphrase)
+		if err != nil {
+			log.Fatal("Unable to unlock vault:", err)
+		} else {
+			log.Println("Vault created: ", name)
+			log.Println("The vault has been unlocked. Add new secrets using:")
+			log.Print("`secrets vault add-secret \"" + name + "\" <key> <value>`")
+		}
 	}
 }
 
@@ -96,7 +126,7 @@ func AddSecretToVault(name string, key string, val string) {
 	vault := secrets.LookupVaultFromKeyRing(name)
 
 	if vault == nil {
-		log.Fatal("No vault found.  Are you sure it's been loaded? ", name)
+		log.Fatal("No vault found with name:", name, "-- are you sure it's been loaded?")
 	}
 
 	if val == "" {

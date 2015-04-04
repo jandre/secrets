@@ -13,7 +13,6 @@ import (
 
 type Vault struct {
 	Path          string `json:"-"`
-	KeyRingId     string `json:"-"`
 	Name          string
 	LastUpdatedAt string
 	Keys          map[string]string
@@ -29,7 +28,9 @@ func LoadVaultsFromKeyRing() ([]*Vault, error) {
 
 	result := make([]*Vault, 0)
 	for _, desc := range keys {
-		vault := DetectVault(desc.Description)
+		vault, _ := DetectVault(desc.Description)
+
+		// TODO: log errors?
 
 		if vault != nil {
 			result = append(result, vault)
@@ -50,7 +51,9 @@ func LookupVaultFromKeyRing(name string) *Vault {
 	desc := FindKeyRing(name, keys)
 
 	if desc != nil {
-		vault := DetectVault(desc.Description)
+		vault, _ := DetectVault(desc.Description)
+
+		// XXX: log error
 		if vault != nil {
 			return vault
 		}
@@ -59,30 +62,26 @@ func LookupVaultFromKeyRing(name string) *Vault {
 	return nil
 }
 
-func LookupVaultPassphrase(name string) {
-
-}
-
 //
 // Returns name, path of keyring if `keyRingId` is valid
 //
-func DetectVault(keyRingId string) *Vault {
+func DetectVault(keyRingId string) (*Vault, error) {
 
 	if !strings.HasPrefix(keyRingId, "secrets$") {
-		return nil
+		return nil, nil
 	}
 
 	substrings := strings.Split(keyRingId, "$")
 
 	if len(substrings) != 3 {
-		return nil
+		return nil, nil
 	}
 
 	name := substrings[1]
 	configPath := substrings[2]
 
 	if !util.FileExists(configPath) {
-		return nil
+		return nil, nil
 	}
 
 	return ReadVault(name, configPath)
@@ -91,11 +90,14 @@ func DetectVault(keyRingId string) *Vault {
 //
 // Read vault from disk
 //
-func ReadVault(name string, configPath string) *Vault {
+func ReadVault(name string, configPath string) (*Vault, error) {
 	v := Vault{Path: configPath, Name: name}
-	v.GenerateKeyRingId()
-	v.Load()
-	return &v
+	err := v.Load()
+
+	if err != nil {
+		return nil, err
+	}
+	return &v, nil
 }
 
 //
@@ -105,16 +107,19 @@ func ReadVault(name string, configPath string) *Vault {
 //
 func NewVault(name string, configPath string) *Vault {
 	v := Vault{Path: configPath, Name: name}
-	v.GenerateKeyRingId()
 	return &v
 }
 
 func (v *Vault) VerifyPassphrase(passphrase string) bool {
 	data, err := v.getSigningData()
+
 	if err != nil {
-		// XXX: log this somehow
+		debug("Invalid signing data:", err)
 		return false
 	}
+
+	debug("signature is %s", data)
+
 	return VerifySignature(passphrase, data, v.Signature)
 }
 
@@ -125,7 +130,7 @@ func (v *Vault) getSigningData() (string, error) {
 		return "", err
 	}
 
-	return fmt.Sprintf("%s-%s-%s", v.Name, v.KeyRingId, data), nil
+	return fmt.Sprintf("%s-%s", v.Name, data), nil
 }
 
 func (v *Vault) Sign(passphrase string) error {
@@ -141,12 +146,6 @@ func (v *Vault) Sign(passphrase string) error {
 	return nil
 }
 
-func (v *Vault) GenerateKeyRingId() {
-	if v.KeyRingId == "" {
-		v.KeyRingId = "secrets$" + v.Name + "$" + v.Path
-	}
-}
-
 //
 // Serialize to string
 //
@@ -158,9 +157,16 @@ func (v *Vault) Serialize() ([]byte, error) {
 //
 // Load the vault meta-data from disk.
 //
-func (v *Vault) Load() {
+func (v *Vault) Load() error {
+	data, err := ioutil.ReadFile(v.Path)
 
-	// XXX: todo
+	if err != nil {
+		return err
+	}
+
+	json.Unmarshal(data, v)
+
+	return nil
 }
 
 //
@@ -169,7 +175,6 @@ func (v *Vault) Load() {
 func (v *Vault) Unlock(passphrase string) error {
 
 	if v.Signature != "" {
-
 		if v.VerifyPassphrase(passphrase) {
 			_, err := AddVaultToKeyRing(v, passphrase)
 			return err
@@ -187,7 +192,7 @@ func (v *Vault) Unlock(passphrase string) error {
 // TODO: keyRingId should be dynamic
 //
 func (v *Vault) GetKeyRingId() string {
-	return v.KeyRingId
+	return "secrets$" + v.Name + "$" + v.Path
 }
 
 //
@@ -214,9 +219,41 @@ func (v *Vault) IsUnlocked() bool {
 	return true
 }
 
-func (v *Vault) getPassword() (string, error) {
-	// XXX: get the vault password
-	return "", nil
+func (v *Vault) getPassphrase() (string, error) {
+
+	keys, err := GetVaultKeys()
+
+	if err != nil {
+		return "", err
+	}
+
+	vaultKeyDesc := FindKeyRing(v.GetKeyRingId(), keys)
+
+	if vaultKeyDesc == nil {
+		return "", errors.New("Vault not found.  Please try `vault unlock <name>`")
+	}
+
+	keyDesc, err := FetchKeyInKeyRing("passphrase", vaultKeyDesc.Serial)
+
+	if err != nil {
+		return "", err
+	}
+
+	if keyDesc == nil {
+		return "", errors.New("No vault passphrase found.")
+	}
+
+	passphrase, err := GetKeyValue(keyDesc.Serial)
+
+	if err != nil {
+		return "", err
+	}
+
+	if passphrase == "" {
+		return "", errors.New("No passphrase vault set.")
+	}
+
+	return passphrase, nil
 }
 
 //
@@ -228,8 +265,18 @@ func (v *Vault) Add(key string, secret string) error {
 		return errors.New("Vault is not unlocked - please run `secrets vault unlock --path=<path_to_vault>`")
 	}
 
-	v.Keys[key] = secret
-	v.Save()
+	passphrase, err := v.getPassphrase()
 
-	return nil
+	if err != nil {
+		return err
+	}
+
+	encryptedSecret, err := EncryptAndBase64String(passphrase, secret)
+
+	if err != nil {
+		return err
+	}
+
+	v.Keys[key] = encryptedSecret
+	return v.Save()
 }

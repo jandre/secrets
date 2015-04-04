@@ -22,7 +22,9 @@ func SignData(passphrase string, data string) string {
 
 func VerifySignature(passphrase string, data string, expected string) bool {
 	signature := SignData(passphrase, data)
-	return signature == expected
+	b1, _ := base64.StdEncoding.DecodeString(signature)
+	b2, _ := base64.StdEncoding.DecodeString(expected)
+	return hmac.Equal(b1, b2)
 }
 
 //

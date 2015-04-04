@@ -101,3 +101,23 @@ func FindKeyRing(name string, keys []*keyutils.KeyDesc) *keyutils.KeyDesc {
 	}
 	return nil
 }
+
+func FetchKeyInKeyRing(keyDesc string, keyRing keyutils.KeySerial) (*keyutils.KeyDesc, error) {
+
+	keys, err := keyutils.ListKeysInKeyRing(keyRing)
+
+	if err != nil {
+		return nil, err
+	}
+
+	for _, key := range keys {
+		if key.Description == keyDesc {
+			return key, nil
+		}
+	}
+	return nil, errors.New("Nothing found in keyring:" + keyDesc)
+}
+
+func GetKeyValue(serial keyutils.KeySerial) (string, error) {
+	return keyutils.ReadKey(serial)
+}
