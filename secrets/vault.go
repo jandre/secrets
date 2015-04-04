@@ -28,9 +28,11 @@ func LoadVaultsFromKeyRing() ([]*Vault, error) {
 
 	result := make([]*Vault, 0)
 	for _, desc := range keys {
-		vault, _ := DetectVault(desc.Description)
+		vault, err := DetectVault(desc.Description)
 
-		// TODO: log errors?
+		if err != nil {
+			debug("LoadVaultsFromKeyRing() error: unable to load vault keys:", err)
+		}
 
 		if vault != nil {
 			result = append(result, vault)
@@ -41,22 +43,24 @@ func LoadVaultsFromKeyRing() ([]*Vault, error) {
 }
 
 func LookupVaultFromKeyRing(name string) *Vault {
-	keys, err := GetVaultKeys()
+	var vault *Vault
+
+	allVaults, err := LoadVaultsFromKeyRing()
 
 	if err != nil {
-		// XXX: log error?
+		debug("error loading all vaults", err)
 		return nil
 	}
 
-	desc := FindKeyRing(name, keys)
-
-	if desc != nil {
-		vault, _ := DetectVault(desc.Description)
-
-		// XXX: log error
-		if vault != nil {
-			return vault
+	for _, v := range allVaults {
+		if v.Name == name {
+			vault = v
+			break
 		}
+	}
+
+	if vault != nil {
+		return vault
 	}
 
 	return nil
@@ -107,6 +111,8 @@ func ReadVault(name string, configPath string) (*Vault, error) {
 //
 func NewVault(name string, configPath string) *Vault {
 	v := Vault{Path: configPath, Name: name}
+	v.DecryptedKeys = make(map[string]string, 0)
+	v.Keys = make(map[string]string, 0)
 	return &v
 }
 
@@ -165,6 +171,11 @@ func (v *Vault) Load() error {
 	}
 
 	json.Unmarshal(data, v)
+
+	if v.Keys == nil {
+		v.Keys = make(map[string]string, 0)
+	}
+	v.DecryptedKeys = make(map[string]string, 0)
 
 	return nil
 }
@@ -278,5 +289,7 @@ func (v *Vault) Add(key string, secret string) error {
 	}
 
 	v.Keys[key] = encryptedSecret
+	v.Sign(passphrase)
+
 	return v.Save()
 }

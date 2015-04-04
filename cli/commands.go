@@ -111,6 +111,7 @@ func CreateVault(name string, folder string) {
 	}
 }
 
+// XXX: TODO
 func ShowVault(name string) {
 	vault := secrets.LookupVaultFromKeyRing(name)
 
@@ -126,7 +127,7 @@ func AddSecretToVault(name string, key string, val string) {
 	vault := secrets.LookupVaultFromKeyRing(name)
 
 	if vault == nil {
-		log.Fatal("No vault found with name:", name, "-- are you sure it's been loaded?")
+		log.Fatal("No vault found with name `", name, "` -- are you sure it's been loaded?")
 	}
 
 	if val == "" {
@@ -144,4 +145,5 @@ func AddSecretToVault(name string, key string, val string) {
 		log.Fatal("Unable to add key to vault:", key)
 	}
 
+	log.Printf("Added key=%s to vault=%s.\n", key, name)
 }
