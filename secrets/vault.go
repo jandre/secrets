@@ -40,23 +40,26 @@ func LoadVaultsFromKeyRing() ([]*Vault, error) {
 }
 
 func LookupVaultFromKeyRing(name string) *Vault {
-
 	keys, err := GetVaultKeys()
+
 	if err != nil {
 		// XXX: log error?
 		return nil
 	}
 
-	for _, desc := range keys {
-		if desc.Description == name {
-			vault := DetectVault(desc.Description)
-			if vault != nil {
-				return vault
-			}
+	desc := FindKeyRing(name, keys)
 
+	if desc != nil {
+		vault := DetectVault(desc.Description)
+		if vault != nil {
+			return vault
 		}
 	}
+
 	return nil
+}
+
+func LookupVaultPassphrase(name string) {
 
 }
 
@@ -85,7 +88,9 @@ func DetectVault(keyRingId string) *Vault {
 	return ReadVault(name, configPath)
 }
 
-// TODO: read vault
+//
+// Read vault from disk
+//
 func ReadVault(name string, configPath string) *Vault {
 	v := Vault{Path: configPath, Name: name}
 	v.GenerateKeyRingId()
@@ -155,6 +160,7 @@ func (v *Vault) Serialize() ([]byte, error) {
 //
 func (v *Vault) Load() {
 
+	// XXX: todo
 }
 
 //
@@ -205,7 +211,7 @@ func (v *Vault) Save() error {
 func (v *Vault) IsUnlocked() bool {
 
 	// XXX:
-	return false
+	return true
 }
 
 func (v *Vault) getPassword() (string, error) {
@@ -221,6 +227,7 @@ func (v *Vault) Add(key string, secret string) error {
 	if !v.IsUnlocked() {
 		return errors.New("Vault is not unlocked - please run `secrets vault unlock --path=<path_to_vault>`")
 	}
+
 	v.Keys[key] = secret
 	v.Save()
 

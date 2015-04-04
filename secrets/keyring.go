@@ -92,3 +92,12 @@ func AddVaultToKeyRing(vault *Vault, passphrase string) (keyutils.KeySerial, err
 
 	return id, err
 }
+
+func FindKeyRing(name string, keys []*keyutils.KeyDesc) *keyutils.KeyDesc {
+	for _, desc := range keys {
+		if desc.Description == name {
+			return desc
+		}
+	}
+	return nil
+}

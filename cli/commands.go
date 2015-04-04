@@ -92,8 +92,26 @@ func ShowVault(name string) {
 }
 
 func AddSecretToVault(name string, key string, val string) {
+	// lookup vault and make sure it is unlocked
+	vault := secrets.LookupVaultFromKeyRing(name)
+
+	if vault == nil {
+		log.Fatal("No vault found.  Are you sure it's been loaded? ", name)
+	}
+
 	if val == "" {
-		// XXX: read from line
+		fmt.Printf("Enter secret: ")
+		readVal, err := secrets.ReadLine()
+		if err != nil {
+			log.Fatal("Unable to read secret:", err)
+		}
+		val = readVal
+	}
+
+	err := vault.Add(key, val)
+
+	if err != nil {
+		log.Fatal("Unable to add key to vault:", key)
 	}
 
 }

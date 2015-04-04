@@ -54,8 +54,9 @@ func Run() {
 
 	case vaultList.FullCommand():
 		ListVaults()
+
 	case vaultAddSecret.FullCommand():
-		println("adding a secret")
+		AddSecretToVault(*vaultAddSecretName, *vaultAddSecretKey, *vaultAddSecretValue)
 
 	case vaultShow.FullCommand():
 		println("got vault show")

@@ -1,6 +1,7 @@
 package secrets
 
 import (
+	"bufio"
 	"fmt"
 	"os"
 
@@ -30,4 +31,23 @@ func TryGetPassphrase() string {
 		return envPass
 	}
 	return ReadPassword()
+}
+
+func ReadLine() (string, error) {
+	bio := bufio.NewReader(os.Stdin)
+
+	tmp, hasMoreInLine, err := bio.ReadLine()
+	line := string(tmp)
+
+	for hasMoreInLine && err != nil {
+		var tmp []byte
+		tmp, hasMoreInLine, err = bio.ReadLine()
+		line += string(tmp)
+	}
+
+	if err != nil {
+		return "", err
+	}
+
+	return line, nil
 }
